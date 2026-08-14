@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 #include <limits>
 #include <string>
 
@@ -226,6 +227,15 @@ void FileSystem_FixSlashes(std::string& fileName)
 
 time_t FileSystem_GetFileTime(const char* fileName)
 {
+#ifdef _STATIC_ENGINE_LINK
+	// No g_ModDirectory (never populated - see FileSystem_InitializeGameDirectory)
+	// and no direct filesystem access to stat() against; enginefuncs_t has no
+	// file-time query. Callers (CGraph::CheckNODFile) already treat 0 as
+	// "unknown/rebuild", which is the correct fallback: it just means the
+	// .nod node-graph cache is rebuilt every map load instead of reused.
+	(void)fileName;
+	return 0;
+#else
 	if (nullptr == fileName)
 	{
 		return 0;
@@ -262,6 +272,7 @@ time_t FileSystem_GetFileTime(const char* fileName)
 
 	return value;
 #endif
+#endif // _STATIC_ENGINE_LINK
 }
 
 bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, int* iCompare)
@@ -290,6 +301,45 @@ bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, in
 
 std::vector<std::byte> FileSystem_LoadFileIntoBuffer(const char* fileName, FileContentFormat format, const char* pathID)
 {
+#ifdef _STATIC_ENGINE_LINK
+	// Routed through enginefuncs_t instead of IFileSystem::Open/Read: it's
+	// the same mechanism the E-series enginefuncs MVP implements anyway
+	// (backed by ferrum-vfs), and unlike a fake IFileSystem vtable it works
+	// unchanged under NXDK, which has no dynamic filesystem library either.
+	// pfnLoadFileForMe has no pathID parameter, so it is unused here - the
+	// Rust side resolves the single mpak/loose-file search order itself.
+	(void)pathID;
+
+	if (nullptr == fileName)
+	{
+		return {};
+	}
+
+	int length = 0;
+	byte* data = g_engfuncs.pfnLoadFileForMe(fileName, &length);
+
+	if (nullptr == data || length < 0)
+	{
+		ALERT(at_console, "FileSystem_LoadFileIntoBuffer: couldn't open file \"%s\" for reading\n", fileName);
+		return {};
+	}
+
+	const auto size = static_cast<std::size_t>(length);
+
+	std::vector<std::byte> buffer;
+	buffer.resize(size + (format == FileContentFormat::Text ? 1 : 0));
+	std::memcpy(buffer.data(), data, size);
+
+	if (format == FileContentFormat::Text)
+	{
+		//Null terminate it in case it's actually text.
+		buffer[size] = std::byte{'\0'};
+	}
+
+	g_engfuncs.pfnFreeFile(data);
+
+	return buffer;
+#else
 	assert(nullptr != g_pFileSystem);
 
 	if (nullptr == fileName)
@@ -318,6 +368,7 @@ std::vector<std::byte> FileSystem_LoadFileIntoBuffer(const char* fileName, FileC
 
 	ALERT(at_console, "FileSystem_LoadFileIntoBuffer: couldn't open file \"%s\" for reading\n", fileName);
 	return {};
+#endif // _STATIC_ENGINE_LINK
 }
 
 bool FileSystem_WriteTextToFile(const char* fileName, const char* text, const char* pathID)
