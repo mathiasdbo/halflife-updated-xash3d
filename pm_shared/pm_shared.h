@@ -23,6 +23,13 @@
 
 struct playermove_s;
 
+// Ferrum56: these four entry points are called across an FFI boundary by the
+// Rust engine. pm_shared.cpp compiles as C++ (renamed from pm_shared.c
+// upstream), which would give them mangled C++ linkage; extern "C" pins the
+// plain, portable symbol names the engine bridge links against on every
+// toolchain (MSVC today, GCC/NXDK later).
+extern "C"
+{
 void PM_Init(playermove_s* ppmove);
 void PM_Move(playermove_s* ppmove, qboolean server);
 char PM_FindTextureType(const char* name);
@@ -31,6 +38,7 @@ char PM_FindTextureType(const char* name);
 *	@brief Engine calls this to enumerate player collision hulls, for prediction. Return false if the hullnumber doesn't exist.
 */
 bool PM_GetHullBounds(int hullnumber, float* mins, float* maxs);
+}
 
 // Spectator Movement modes (stored in pev->iuser1, so the physics code can get at them)
 #define OBS_NONE 0
