@@ -814,6 +814,16 @@ static void LoadAllMaps()
 		return;
 	}
 
+#ifdef _STATIC_ENGINE_LINK
+	// No IFileSystem::FindFirst/FindNext to enumerate "maps/*.bsp" with, and
+	// no engine-func equivalent exists for a wildcard directory listing -
+	// unlike the other FileSystem_* rerouting in this target, there is no
+	// enginefuncs_t call to substitute here. sv_load_all_maps is a
+	// development-only debug command in the first place; fail loudly rather
+	// than silently doing nothing.
+	pmove->Con_Printf("sv_load_all_maps: unavailable (no filesystem directory listing)\n");
+	return;
+#else
 	FileFindHandle_t handle = FILESYSTEM_INVALID_FIND_HANDLE;
 
 	const char* fileName = g_pFileSystem->FindFirst("maps/*.bsp", &handle);
@@ -838,6 +848,7 @@ static void LoadAllMaps()
 		std::sort(g_MapsToLoad.begin(), g_MapsToLoad.end(), [](const auto& lhs, const auto& rhs)
 			{ return rhs < lhs; });
 	}
+#endif // _STATIC_ENGINE_LINK
 
 	if (!g_MapsToLoad.empty())
 	{

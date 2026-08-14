@@ -1680,7 +1680,12 @@ void CTestHull::BuildNodeGraph()
 	}
 
 	// make sure directories have been made
+#ifndef _STATIC_ENGINE_LINK
 	g_pFileSystem->CreateDirHierarchy("maps/graphs", "GAMECONFIG");
+#endif
+	// Ferrum56: no directory concept for a mpak/loose-file backed write hook
+	// (Ferrum_FS_WriteFile) - the engine-side implementation is responsible
+	// for wherever it actually stores this path.
 
 	const std::string nrpFileName{std::string{"maps/graphs/"} + STRING(gpGlobals->mapname) + ".nrp"};
 
@@ -2321,7 +2326,11 @@ void CQueuePriority::Heap_SiftUp()
 bool CGraph::FLoadGraph(const char* szMapName)
 {
 	// make sure the directories have been made
+#ifndef _STATIC_ENGINE_LINK
 	g_pFileSystem->CreateDirHierarchy("maps/graphs", "GAMECONFIG");
+#endif
+	// Ferrum56: this is a read path (FileSystem_LoadFileIntoBuffer below,
+	// via pfnLoadFileForMe) - no directory needs pre-creating for a read.
 
 	const std::string fileName{std::string{"maps/graphs/"} + szMapName + ".nod"};
 
@@ -2495,7 +2504,12 @@ bool CGraph::FSaveGraph(const char* szMapName)
 	}
 
 	// make sure directories have been made
+#ifndef _STATIC_ENGINE_LINK
 	g_pFileSystem->CreateDirHierarchy("maps/graphs", "GAMECONFIG");
+#endif
+	// Ferrum56: no directory concept for a mpak/loose-file backed write hook
+	// (Ferrum_FS_WriteFile) - the engine-side implementation is responsible
+	// for wherever it actually stores this path.
 
 	const std::string fileName{std::string{"maps/graphs/"} + szMapName + ".nod"};
 
