@@ -128,7 +128,12 @@ target_sources(hl PRIVATE
 	../pm_shared/pm_math.cpp
 	../pm_shared/pm_shared.cpp
 
-	../public/interface.cpp
+	# Ferrum56 (_STATIC_ENGINE_LINK): interface.cpp only implements the
+	# Sys_LoadModule/Sys_GetFactory/CreateInterface dynamic-loading machinery
+	# filesystem_utils.cpp used to load filesystem_stdio.dll - the only
+	# caller in this target - and that caller is neutralized under
+	# _STATIC_ENGINE_LINK (see game_shared/filesystem_utils.cpp), so this
+	# drops the target's only kernel32 LoadLibrary/GetProcAddress imports.
 
 	activity.h
 	activitymap.h
