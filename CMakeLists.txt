@@ -181,7 +181,13 @@ install(FILES
 
 if (MSVC)
 	install(FILES $<TARGET_PDB_FILE:client> DESTINATION cl_dlls OPTIONAL)
-	install(FILES $<TARGET_PDB_FILE:hl> DESTINATION dlls OPTIONAL)
+	# TARGET_PDB_FILE is only valid for targets with linker-created artifacts;
+	# when hl is built as a STATIC archive (Ferrum56), referencing it is a
+	# hard configure error, so guard on the actual target type.
+	get_target_property(HL_TARGET_TYPE hl TYPE)
+	if (NOT HL_TARGET_TYPE STREQUAL "STATIC_LIBRARY")
+		install(FILES $<TARGET_PDB_FILE:hl> DESTINATION dlls OPTIONAL)
+	endif()
 endif()
 
 # Set up the script that will copy the mod libraries to the HLDS directory

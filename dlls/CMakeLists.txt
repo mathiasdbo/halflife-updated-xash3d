@@ -1,4 +1,7 @@
-add_library(hl SHARED $<$<PLATFORM_ID:Windows>:hl.def>)
+# Ferrum56: built as a STATIC archive linked directly into the Rust engine
+# binary (no runtime LoadLibrary/dlopen), so the hl.def export list is
+# unnecessary and SHARED is replaced. See _STATIC_ENGINE_LINK below.
+add_library(hl STATIC)
 
 set_common_properties(hl)
 
@@ -11,7 +14,8 @@ target_include_directories(hl PRIVATE
 	../public)
 
 target_compile_definitions(hl PRIVATE
-	VALVE_DLL)
+	VALVE_DLL
+	_STATIC_ENGINE_LINK)
 
 target_sources(hl PRIVATE
 	aflock.cpp
