@@ -184,7 +184,15 @@ void SequencePrecache(void* pmodel, const char* pSequenceName)
 					ALERT(at_error, "Bad sound event %d in sequence %s :: %s (sound is \"%s\")\n", pevent[i].event, pstudiohdr->name, pSequenceName, pevent[i].options);
 				}
 
+#ifdef _STATIC_ENGINE_LINK
+				// Ferrum56: this is an inlined STRING(ALLOC_STRING(...)) that
+				// bypassed the STRING macro entirely with raw pStringBase
+				// pointer arithmetic - see util.h's _STATIC_ENGINE_LINK gate
+				// on STRING/MAKE_STRING for why that's unsound here.
+				PRECACHE_SOUND((char*)STRING(ALLOC_STRING(pevent[i].options)));
+#else
 				PRECACHE_SOUND((char*)(gpGlobals->pStringBase + ALLOC_STRING(pevent[i].options)));
+#endif
 			}
 		}
 	}
