@@ -41,6 +41,24 @@ constexpr char AlternatePathSeparatorChar = '\\';
 
 inline IFileSystem* g_pFileSystem = nullptr;
 
+#ifdef _STATIC_ENGINE_LINK
+/**
+*	@brief Ferrum56 hook (implemented in Rust, ferrum-engine/src/fs_bridge.rs):
+*	flushes a buffered write out through the engine's storage backend.
+*	Declared here rather than in a separate header so callers only need
+*	filesystem_utils.h, matching how the rest of this file works.
+*	@return Nonzero on success, 0 on failure.
+*/
+extern "C" int Ferrum_FS_WriteFile(const char* path, const void* data, int len);
+
+/**
+*	@brief Appends formatted text to a memory buffer. Bridges FSFile::Printf's
+*	template parameter pack to a C-style va_list, which vsnprintf requires -
+*	must be declared (not just used) before FSFile's Printf template below.
+*/
+void FSFile_AppendFormatted(std::vector<char>& buffer, const char* format, ...);
+#endif
+
 bool FileSystem_LoadFileSystem();
 void FileSystem_FreeFileSystem();
 
@@ -124,8 +142,16 @@ public:
 
 	FSFile(FSFile&& other) noexcept
 		: _handle(other._handle)
+#ifdef _STATIC_ENGINE_LINK
+		, _writeFileName(std::move(other._writeFileName))
+		, _writeBuffer(std::move(other._writeBuffer))
+		, _isOpen(other._isOpen)
+#endif
 	{
 		other._handle = FILESYSTEM_INVALID_HANDLE;
+#ifdef _STATIC_ENGINE_LINK
+		other._isOpen = false;
+#endif
 	}
 
 	FSFile& operator=(FSFile&& other) noexcept
@@ -135,6 +161,12 @@ public:
 			Close();
 			_handle = other._handle;
 			other._handle = FILESYSTEM_INVALID_HANDLE;
+#ifdef _STATIC_ENGINE_LINK
+			_writeFileName = std::move(other._writeFileName);
+			_writeBuffer = std::move(other._writeBuffer);
+			_isOpen = other._isOpen;
+			other._isOpen = false;
+#endif
 		}
 
 		return *this;
@@ -145,9 +177,20 @@ public:
 
 	~FSFile();
 
+#ifdef _STATIC_ENGINE_LINK
+	constexpr bool IsOpen() const { return _isOpen; }
+#else
 	constexpr bool IsOpen() const { return _handle != FILESYSTEM_INVALID_HANDLE; }
+#endif
 
-	std::size_t Size() const { return static_cast<std::size_t>(g_pFileSystem->Size(_handle)); }
+	std::size_t Size() const
+	{
+#ifdef _STATIC_ENGINE_LINK
+		return _writeBuffer.size();
+#else
+		return static_cast<std::size_t>(g_pFileSystem->Size(_handle));
+#endif
+	}
 
 	bool Open(const char* filename, const char* options, const char* pathID = nullptr);
 	void Close();
@@ -161,13 +204,30 @@ public:
 	template <typename... Args>
 	int Printf(const char* format, Args&&... args)
 	{
+#ifdef _STATIC_ENGINE_LINK
+		const std::size_t before = _writeBuffer.size();
+		FSFile_AppendFormatted(_writeBuffer, format, std::forward<Args>(args)...);
+		return static_cast<int>(_writeBuffer.size() - before);
+#else
 		return g_pFileSystem->FPrintf(_handle, format, std::forward<Args>(args)...);
+#endif
 	}
 
 	constexpr operator bool() const { return IsOpen(); }
 
 private:
 	FileHandle_t _handle = FILESYSTEM_INVALID_HANDLE;
+#ifdef _STATIC_ENGINE_LINK
+	// Ferrum56: there is no IFileSystem to hand a filename to and get a
+	// handle back. Writes are buffered in memory and flushed through
+	// Ferrum_FS_WriteFile on Close() instead - FSFile's only usage pattern
+	// in this target is write-only, sequential append (the .nrp/.nod
+	// writers in dlls/nodes.cpp); reads go through
+	// FileSystem_LoadFileIntoBuffer instead, which does not use FSFile.
+	std::string _writeFileName;
+	std::vector<char> _writeBuffer;
+	bool _isOpen = false;
+#endif
 };
 
 inline FSFile::FSFile(const char* filename, const char* options, const char* pathID)
@@ -184,34 +244,79 @@ inline bool FSFile::Open(const char* filename, const char* options, const char* 
 {
 	Close();
 
+#ifdef _STATIC_ENGINE_LINK
+	// Write-only usage in this target (see the class comment above): always
+	// "opens" successfully for buffered append. options/pathID have no
+	// meaning without a real search-path filesystem.
+	(void)options;
+	(void)pathID;
+	_writeFileName = filename;
+	_writeBuffer.clear();
+	_isOpen = true;
+	return true;
+#else
 	_handle = g_pFileSystem->Open(filename, options, pathID);
 
 	return IsOpen();
+#endif
 }
 
 inline void FSFile::Close()
 {
 	if (IsOpen())
 	{
+#ifdef _STATIC_ENGINE_LINK
+		Ferrum_FS_WriteFile(_writeFileName.c_str(), _writeBuffer.data(), static_cast<int>(_writeBuffer.size()));
+		_writeFileName.clear();
+		_writeBuffer.clear();
+		_isOpen = false;
+#else
 		g_pFileSystem->Close(_handle);
 		_handle = FILESYSTEM_INVALID_HANDLE;
+#endif
 	}
 }
 
 inline void FSFile::Seek(int pos, FileSystemSeek_t seekType)
 {
+#ifdef _STATIC_ENGINE_LINK
+	// Never exercised: FSFile is write-only, sequential append in this
+	// target. No-op rather than a partial random-access implementation.
+	(void)pos;
+	(void)seekType;
+#else
 	if (IsOpen())
 	{
 		g_pFileSystem->Seek(_handle, pos, seekType);
 	}
+#endif
 }
 
 inline int FSFile::Read(void* dest, int size)
 {
+#ifdef _STATIC_ENGINE_LINK
+	// Never exercised: all reads in this target go through
+	// FileSystem_LoadFileIntoBuffer (pfnLoadFileForMe), not FSFile.
+	(void)dest;
+	(void)size;
+	return 0;
+#else
 	return g_pFileSystem->Read(dest, size, _handle);
+#endif
 }
 
 inline int FSFile::Write(const void* input, int size)
 {
+#ifdef _STATIC_ENGINE_LINK
+	if (!_isOpen || size <= 0)
+	{
+		return 0;
+	}
+
+	const auto* bytes = static_cast<const char*>(input);
+	_writeBuffer.insert(_writeBuffer.end(), bytes, bytes + size);
+	return size;
+#else
 	return g_pFileSystem->Write(input, size, _handle);
+#endif
 }

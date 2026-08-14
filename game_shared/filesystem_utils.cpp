@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <string>
@@ -56,6 +58,31 @@
 
 #ifndef _STATIC_ENGINE_LINK
 static CSysModule* g_pFileSystemModule = nullptr;
+#endif
+
+#ifdef _STATIC_ENGINE_LINK
+void FSFile_AppendFormatted(std::vector<char>& buffer, const char* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	va_list argsCopy;
+	va_copy(argsCopy, args);
+
+	const int needed = std::vsnprintf(nullptr, 0, format, args);
+	va_end(args);
+
+	if (needed > 0)
+	{
+		const std::size_t oldSize = buffer.size();
+		buffer.resize(oldSize + static_cast<std::size_t>(needed) + 1);
+		std::vsnprintf(buffer.data() + oldSize, static_cast<std::size_t>(needed) + 1, format, argsCopy);
+		// Drop the trailing null vsnprintf wrote - the buffer accumulates
+		// raw file bytes, not a C string, so it should not gain one per call.
+		buffer.resize(oldSize + static_cast<std::size_t>(needed));
+	}
+
+	va_end(argsCopy);
+}
 #endif
 
 // Some methods used to launch the game don't set the working directory.
@@ -373,7 +400,9 @@ std::vector<std::byte> FileSystem_LoadFileIntoBuffer(const char* fileName, FileC
 
 bool FileSystem_WriteTextToFile(const char* fileName, const char* text, const char* pathID)
 {
+#ifndef _STATIC_ENGINE_LINK
 	assert(nullptr != g_pFileSystem);
+#endif
 
 	if (nullptr == fileName || nullptr == text)
 	{
