@@ -77,7 +77,18 @@ function(set_common_properties TARGET_NAME)
 		# Note: the pentium-m arch setting is not used for AMD systems in the original makefile
 		# Since the arch settings used are i686 this means including the setting ensures original settings are used,
 		# but it could cause problems for AMD targets
-		$<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-fpermissive -fno-strict-aliasing -Wno-invalid-offsetof -march=pentium-m -mfpmath=387>
+		# Compatibility flags this codebase needs on any Clang/GCC toolchain
+		# (permissive-mode + offsetof-on-non-standard-layout suppression for
+		# 25-year-old code) - kept for NXDK's clang-based nxdk-cc too.
+		$<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-fpermissive -fno-strict-aliasing -Wno-invalid-offsetof>
+
+		# Ferrum56: excluded under NXDK (set by nxdk's toolchain-nxdk.cmake).
+		# -march=pentium-m implies SSE2, which the real Original Xbox CPU (a
+		# Pentium III core) does not have - only SSE1; nxdk-cc's own driver
+		# already passes the correct -march=pentium3, and -mfpmath=387
+		# forces legacy x87 float math on top of that, which is not what an
+		# SSE-capable NXDK build wants either.
+		$<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang,GNU>,$<NOT:$<BOOL:${NXDK}>>>:-march=pentium-m -mfpmath=387>
 
 		# flifetime-dse=1 is needed to disable a compiler optimization that optimizes out std::memset calls in CBaseEntity::operator new
 		# See https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#index-flifetime-dse for more information about this flag
