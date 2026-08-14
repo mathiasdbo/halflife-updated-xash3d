@@ -39,11 +39,23 @@
 #include "hud.h"
 #endif
 
+// Ferrum56 (_STATIC_ENGINE_LINK, defined by dlls/CMakeLists.txt): the game
+// logic is linked directly into the Rust engine binary, not loaded as
+// filesystem_stdio.dll's sibling module - there is no Sys_LoadModule/
+// Sys_GetFactory dynamic-loading path to take, and no engine .exe next to
+// this binary to look up via GetModuleFileNameA either (NXDK has no
+// dynamic loading and no filesystem_stdio.dll at all). interface.h is only
+// needed for that dynamic-loading machinery, so it - and public/interface.cpp
+// in dlls/CMakeLists.txt - are dropped entirely rather than compiled unused.
+#ifndef _STATIC_ENGINE_LINK
 #include "interface.h"
+#endif
 
 #include "filesystem_utils.h"
 
+#ifndef _STATIC_ENGINE_LINK
 static CSysModule* g_pFileSystemModule = nullptr;
+#endif
 
 // Some methods used to launch the game don't set the working directory.
 // This makes using relative paths that point to the game and/or mod directory difficult
@@ -57,6 +69,14 @@ static std::string g_ModDirectoryName;
 
 static bool FileSystem_InitializeGameDirectory()
 {
+#ifdef _STATIC_ENGINE_LINK
+	// g_GameDirectory/g_ModDirectory only exist to build absolute paths for
+	// FileSystem_GetFileTime's direct _stat64i32/stat calls and
+	// UTIL_IsValveGameDirectory's g_ModDirectoryName check below - both are
+	// neutralized under _STATIC_ENGINE_LINK, so nothing ever reads these
+	// globals and there is nothing to compute here.
+	return true;
+#else
 	std::string gameDirectory;
 
 #ifdef WIN32
@@ -111,10 +131,20 @@ static bool FileSystem_InitializeGameDirectory()
 	g_ModDirectory = g_GameDirectory + DefaultPathSeparatorChar + g_ModDirectoryName;
 
 	return true;
+#endif // _STATIC_ENGINE_LINK
 }
 
 bool FileSystem_LoadFileSystem()
 {
+#ifdef _STATIC_ENGINE_LINK
+	// No filesystem_stdio.dll/.so/.dylib to load, and no g_pFileSystem to
+	// populate - reads/writes are rerouted through enginefuncs_t and a
+	// static Rust hook instead (see FileSystem_LoadFileIntoBuffer /
+	// FileSystem_WriteTextToFile below). Still must run the (now trivial)
+	// game-directory step so callers that check its return value see the
+	// same success path as upstream.
+	return FileSystem_InitializeGameDirectory();
+#else
 	if (nullptr != g_pFileSystem)
 	{
 		//Already loaded.
@@ -165,10 +195,12 @@ bool FileSystem_LoadFileSystem()
 	}
 
 	return true;
+#endif // _STATIC_ENGINE_LINK
 }
 
 void FileSystem_FreeFileSystem()
 {
+#ifndef _STATIC_ENGINE_LINK
 	if (nullptr != g_pFileSystem)
 	{
 		g_pFileSystem = nullptr;
@@ -179,6 +211,7 @@ void FileSystem_FreeFileSystem()
 		Sys_UnloadModule(g_pFileSystemModule);
 		g_pFileSystemModule = nullptr;
 	}
+#endif // _STATIC_ENGINE_LINK
 }
 
 const std::string& FileSystem_GetModDirectoryName()
@@ -330,6 +363,14 @@ constexpr const char* ValveGameDirectoryPrefixes[] =
 
 bool UTIL_IsValveGameDirectory()
 {
+#ifdef _STATIC_ENGINE_LINK
+	// This guard exists to refuse running a mod out of a retail Valve game's
+	// own directory - meaningless when statically linked into Ferrum56,
+	// whose mod directory legitimately IS "valve" (there is no separate mod
+	// installation to protect). SV_InitServer (dlls/game.cpp) would quit on
+	// startup every launch if this returned true here.
+	return false;
+#else
 	const std::string& modDirectoryName = FileSystem_GetModDirectoryName();
 
 	for (const auto prefix : ValveGameDirectoryPrefixes)
@@ -341,4 +382,5 @@ bool UTIL_IsValveGameDirectory()
 	}
 
 	return false;
+#endif // _STATIC_ENGINE_LINK
 }
