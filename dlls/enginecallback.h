@@ -17,6 +17,11 @@
 
 #include "event_flags.h"
 
+#ifdef _STATIC_ENGINE_LINK
+#include <cstdarg>
+#include <cstdio>
+#endif
+
 // Must be provided by user of this code
 // Holds engine functionality callbacks
 inline enginefuncs_t g_engfuncs;
@@ -94,7 +99,31 @@ inline void WRITE_FLOAT(float value)
 #define CVAR_SET_FLOAT (*g_engfuncs.pfnCVarSetFloat)
 #define CVAR_SET_STRING (*g_engfuncs.pfnCVarSetString)
 #define CVAR_GET_POINTER (*g_engfuncs.pfnCVarGetPointer)
+#ifdef _STATIC_ENGINE_LINK
+// Ferrum56: pfnAlertMessage is C-variadic
+// (void (*)(ALERT_TYPE, const char*, ...)) - stable Rust cannot define a
+// variadic extern "C" function, so ALERT can't dispatch through
+// g_engfuncs.pfnAlertMessage like every other macro in this file (it stays
+// unset/null on the Rust side). Format the varargs here instead and hand
+// the Rust side one pre-formatted string via a plain, non-variadic
+// extern "C" function - same shape as fs_bridge.rs's Ferrum_FS_WriteFile
+// hook. ALERT fires unconditionally on the worldspawn precache path
+// (e.g. ~60 times from RefreshSkillData's zeroed skill cvars alone), so
+// leaving it null is not an option once that path is exercised.
+extern "C" void Ferrum_AlertMessage(int atype, const char* szMsg);
+inline void Ferrum_Alert(ALERT_TYPE atype, const char* szFmt, ...)
+{
+	char buf[1024];
+	va_list ap;
+	va_start(ap, szFmt);
+	vsnprintf(buf, sizeof(buf), szFmt, ap);
+	va_end(ap);
+	Ferrum_AlertMessage(static_cast<int>(atype), buf);
+}
+#define ALERT Ferrum_Alert
+#else
 #define ALERT (*g_engfuncs.pfnAlertMessage)
+#endif
 #define ENGINE_FPRINTF (*g_engfuncs.pfnEngineFprintf)
 #define ALLOC_PRIVATE (*g_engfuncs.pfnPvAllocEntPrivateData)
 inline void* GET_PRIVATE(edict_t* pent)
