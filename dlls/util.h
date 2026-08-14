@@ -30,8 +30,21 @@ inline void MESSAGE_BEGIN(int msg_dest, int msg_type, const float* pOrigin, entv
 inline globalvars_t* gpGlobals = nullptr;
 
 // Use this instead of ALLOC_STRING on constant strings
+#ifdef _STATIC_ENGINE_LINK
+// Ferrum56: string_t is an opaque index into the engine's own string pool
+// here, not a pointer offset from gpGlobals->pStringBase - Ferrum never sets
+// pStringBase (no single contiguous string arena exists on the Rust side),
+// and no base pointer choice could make `(uint64)str - (uint64)base` fit a
+// 32-bit string_t under Win64 ASLR regardless. Route through the real
+// engine calls instead - the same fallback FWGS/hlsdk-portable uses for
+// 64-bit MAKE_STRING, and precedented right here in this SDK by the
+// commented-out `STRING (*g_engfuncs.pfnSzFromIndex)` in enginecallback.h.
+#define STRING(offset) ((const char*)(g_engfuncs.pfnSzFromIndex(offset)))
+#define MAKE_STRING(str) ALLOC_STRING(str)
+#else
 #define STRING(offset) ((const char*)(gpGlobals->pStringBase + (unsigned int)(offset)))
 #define MAKE_STRING(str) ((uint64)(str) - (uint64)(STRING(0)))
+#endif
 
 inline edict_t* FIND_ENTITY_BY_CLASSNAME(edict_t* entStart, const char* pszName)
 {
