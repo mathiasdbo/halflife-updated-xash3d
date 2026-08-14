@@ -15,7 +15,15 @@ target_include_directories(hl PRIVATE
 
 target_compile_definitions(hl PRIVATE
 	VALVE_DLL
-	_STATIC_ENGINE_LINK)
+	_STATIC_ENGINE_LINK
+	# Explicit rather than relying on the toolchain to provide it: MSVC's
+	# default CMake platform module already defines this, but (a) Ferrum56's
+	# build.rs uses the `cmake` Rust crate, which overrides CMAKE_CXX_FLAGS
+	# wholesale and wipes that default, and (b) nxdk's toolchain-nxdk.cmake
+	# sets CMAKE_SYSTEM_NAME to "Generic" and its nxdk-cc driver never passes
+	# -DWIN32 either, despite Platform.h's #ifdef WIN32 branch being the one
+	# this codebase needs on both targets (stricmp/_snprintf/DLLEXPORT/etc).
+	WIN32)
 
 target_sources(hl PRIVATE
 	aflock.cpp
