@@ -61,7 +61,30 @@ inline enginefuncs_t g_engfuncs;
 #define GET_AIM_VECTOR (*g_engfuncs.pfnGetAimVector)
 #define SERVER_COMMAND (*g_engfuncs.pfnServerCommand)
 #define SERVER_EXECUTE (*g_engfuncs.pfnServerExecute)
+#ifdef _STATIC_ENGINE_LINK
+// Ferrum56: pfnClientCommand is C-variadic
+// (void (*)(edict_t*, const char*, ...)) - same constraint as ALERT
+// below. trigger_cdaudio/target_cdaudio (triggers.cpp) route background
+// music through CLIENT_COMMAND(edict, "cd play %3d\n") - a
+// pre-formatted string built via a local sprintf, no real varargs at
+// the call site - rather than a direct engine call, so this is the real
+// P16 background-music entry point, not CDAudio_Play (confirmed dead:
+// nothing in this SDK ever calls it). Format the varargs here, hand the
+// Rust side one plain string, same shape as Ferrum_Alert above.
+extern "C" void Ferrum_ClientCommand(edict_t* pEdict, const char* szCommand);
+inline void Ferrum_ClientCommandFmt(edict_t* pEdict, const char* szFmt, ...)
+{
+	char buf[1024];
+	va_list ap;
+	va_start(ap, szFmt);
+	vsnprintf(buf, sizeof(buf), szFmt, ap);
+	va_end(ap);
+	Ferrum_ClientCommand(pEdict, buf);
+}
+#define CLIENT_COMMAND Ferrum_ClientCommandFmt
+#else
 #define CLIENT_COMMAND (*g_engfuncs.pfnClientCommand)
+#endif
 #define PARTICLE_EFFECT (*g_engfuncs.pfnParticleEffect)
 #define LIGHT_STYLE (*g_engfuncs.pfnLightStyle)
 #define DECAL_INDEX (*g_engfuncs.pfnDecalIndex)
