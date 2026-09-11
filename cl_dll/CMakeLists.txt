@@ -48,7 +48,13 @@ target_include_directories(client PRIVATE
 
 target_compile_definitions(client PRIVATE
 	CLIENT_DLL
-	HL_DLL)
+	HL_DLL
+	# Resonance3D: nxdk-cc never defines WIN32 (see dlls/CMakeLists.txt's
+	# matching comment on the server side) and Platform.h's #ifdef WIN32
+	# branch (stricmp/_snprintf/DLLEXPORT/etc) is needed here too - measured
+	# missing on this target specifically during X7.1's manifest-derivation
+	# work: the server side already had this fix, the client side did not.
+	WIN32)
 
 target_link_libraries(client PRIVATE
 	vgui
