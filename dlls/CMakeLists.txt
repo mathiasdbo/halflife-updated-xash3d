@@ -1,6 +1,11 @@
-# Ferrum56: built as a STATIC archive linked directly into the Rust engine
-# binary (no runtime LoadLibrary/dlopen), so the hl.def export list is
-# unnecessary and SHARED is replaced. See _STATIC_ENGINE_LINK below.
+# Resonance3D: this repo's master branch (see AGENTS.md/fork-plan.md's X7)
+# carries Ferrum56's Rust-engine-specific static-archive setup behind
+# _STATIC_ENGINE_LINK - this resonance3d branch never defines that macro,
+# so `hl` here compiles the stock, upstream-shaped behaviour (no runtime
+# LoadLibrary/dlopen dependency either, since Resonance3D's own Xbox build
+# links this module statically too, just via its own mechanism -
+# tools/gen-library-tables.sh's Lib_Find table in the parent repo, not
+# _STATIC_ENGINE_LINK's Rust hooks).
 add_library(hl STATIC)
 
 set_common_properties(hl)
@@ -15,14 +20,15 @@ target_include_directories(hl PRIVATE
 
 target_compile_definitions(hl PRIVATE
 	VALVE_DLL
-	_STATIC_ENGINE_LINK
 	# Explicit rather than relying on the toolchain to provide it: MSVC's
-	# default CMake platform module already defines this, but (a) Ferrum56's
-	# build.rs uses the `cmake` Rust crate, which overrides CMAKE_CXX_FLAGS
-	# wholesale and wipes that default, and (b) nxdk's toolchain-nxdk.cmake
-	# sets CMAKE_SYSTEM_NAME to "Generic" and its nxdk-cc driver never passes
-	# -DWIN32 either, despite Platform.h's #ifdef WIN32 branch being the one
-	# this codebase needs on both targets (stricmp/_snprintf/DLLEXPORT/etc).
+	# default CMake platform module already defines this, but nxdk's
+	# toolchain-nxdk.cmake sets CMAKE_SYSTEM_NAME to "Generic" and its
+	# nxdk-cc driver never passes -DWIN32 either, despite Platform.h's
+	# #ifdef WIN32 branch being the one this codebase needs on both targets
+	# (stricmp/_snprintf/DLLEXPORT/etc). Resonance3D's own tools/xbox-cxx.sh
+	# compile route (see the parent repo's docs/r3d/fork-plan.md, X7.1)
+	# reads this list rather than invoking this CMakeLists.txt directly, so
+	# it must be correct and complete on its own.
 	WIN32)
 
 target_sources(hl PRIVATE
@@ -136,12 +142,27 @@ target_sources(hl PRIVATE
 	../pm_shared/pm_math.cpp
 	../pm_shared/pm_shared.cpp
 
-	# Ferrum56 (_STATIC_ENGINE_LINK): interface.cpp only implements the
-	# Sys_LoadModule/Sys_GetFactory/CreateInterface dynamic-loading machinery
-	# filesystem_utils.cpp used to load filesystem_stdio.dll - the only
-	# caller in this target - and that caller is neutralized under
-	# _STATIC_ENGINE_LINK (see game_shared/filesystem_utils.cpp), so this
-	# drops the target's only kernel32 LoadLibrary/GetProcAddress imports.
+	# Resonance3D: with _STATIC_ENGINE_LINK undefined (see above),
+	# game_shared/filesystem_utils.cpp's stock FileSystem_LoadFileSystem()
+	# path calls Sys_LoadModule/Sys_GetFactory (interface.h) at runtime, so
+	# their definitions (public/interface.cpp) must be compiled into this
+	# target or the link fails outright. Restored here after measuring that
+	# Ferrum56's master branch drops this file - correct for that branch
+	# (its _STATIC_ENGINE_LINK path never calls into interface.cpp at all),
+	# wrong for this one. Runtime behaviour is a separate, known problem:
+	# Sys_LoadModule's WIN32 body is a raw LoadLibrary("filesystem_stdio.dll")
+	# call, and nxdk's LoadLibraryExA always returns NULL (no dynamic
+	# loading on Xbox) - so FileSystem_LoadFileSystem() will link cleanly
+	# but fail at runtime, and dlls/game.cpp:490's GameDLLInit() treats that
+	# as fatal (SERVER_COMMAND("quit\n") before any gameplay code runs).
+	# Tracked in the parent repo's docs/r3d/fork-plan.md, X7.4, as the real
+	# first boot blocker - ahead of even the previously-known writable-
+	# rootdir gap. Not fixed on this branch yet; the fix shape is already
+	# known (route through g_engfuncs.pfnLoadFileForMe/pfnFreeFile,
+	# engine/eiface.h:201-202, real Xash3D-FWGS engine callbacks - the same
+	# shape _STATIC_ENGINE_LINK's own FileSystem_LoadFileIntoBuffer already
+	# uses, just needs Resonance3D's own guard instead of that macro).
+	../public/interface.cpp
 
 	activity.h
 	activitymap.h
