@@ -252,7 +252,11 @@ public:
 
 	virtual bool UpdateClientData(CBasePlayer* pPlayer) { return false; }
 
-	CBasePlayerWeapon* GetWeaponPtr() override { return NULL; }
+#if defined(NXDK)
+	CBasePlayerWeapon* GetWeaponPtr() override { return NULL; } // overrides CBaseEntity's NXDK-only virtual, see dlls/cbase.h
+#else
+	virtual CBasePlayerWeapon* GetWeaponPtr() { return NULL; }
+#endif
 
 	virtual void GetWeaponData(weapon_data_t& data) {}
 
