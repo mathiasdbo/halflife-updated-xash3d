@@ -116,6 +116,8 @@ class CBaseEntity;
 class CBaseToggle;
 class CBaseMonster;
 class CBasePlayerItem;
+class CBasePlayer;
+class CBasePlayerWeapon;
 class CSquadMonster;
 
 
@@ -192,11 +194,25 @@ public:
 	virtual CBaseToggle* MyTogglePointer() { return NULL; }
 	virtual CBaseMonster* MyMonsterPointer() { return NULL; }
 	virtual CSquadMonster* MySquadMonsterPointer() { return NULL; }
+	// Same RTTI-free safe-downcast idiom as MyMonsterPointer() above, extended
+	// to CBasePlayer/CBasePlayerWeapon: NXDK provides no dynamic_cast runtime
+	// support (no __RTDynamicCast in any of its prebuilt libs), so the few
+	// call sites that used to dynamic_cast a CBaseEntity* down to these two
+	// types now go through this existing pattern instead. Single, non-virtual
+	// inheritance the whole way down for both (verified against dlls/player.h
+	// and dlls/weapons.h), so this virtual dispatch is exactly behaviourally
+	// equivalent to a successful dynamic_cast, not an approximation.
+	virtual CBasePlayer* MyPlayerPointer() { return NULL; }
 	virtual int GetToggleState() { return TS_AT_TOP; }
 	virtual void AddPoints(int score, bool bAllowNegativeScore) {}
 	virtual void AddPointsToTeam(int score, bool bAllowNegativeScore) {}
 	virtual bool AddPlayerItem(CBasePlayerItem* pItem) { return 0; }
 	virtual bool RemovePlayerItem(CBasePlayerItem* pItem) { return 0; }
+	// Pulled up from CBasePlayerItem (dlls/weapons.h) to CBaseEntity level -
+	// see MyPlayerPointer() above for why. CBasePlayerItem's own override
+	// stays the same NULL default; only CBasePlayerWeapon (and its
+	// subclasses) return non-NULL.
+	virtual CBasePlayerWeapon* GetWeaponPtr() { return NULL; }
 	virtual int GiveAmmo(int iAmount, const char* szName, int iMax) { return -1; }
 	virtual float GetDelay() { return 0; }
 	virtual bool IsMoving() { return pev->velocity != g_vecZero; }

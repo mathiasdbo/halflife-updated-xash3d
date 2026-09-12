@@ -1752,7 +1752,14 @@ int GetWeaponData(struct edict_s* player, struct weapon_data_s* info)
 	int i;
 	weapon_data_t* item;
 	entvars_t* pev = &player->v;
-	CBasePlayer* pl = dynamic_cast<CBasePlayer*>(CBasePlayer::Instance(pev));
+	// NXDK provides no dynamic_cast runtime support (no __RTDynamicCast in
+	// any of its prebuilt libs) - CBaseEntity::MyPlayerPointer() is the
+	// same RTTI-free safe-downcast idiom this SDK already uses for
+	// MyMonsterPointer()/MyTogglePointer() (see dlls/cbase.h), behaviourally
+	// identical here since CBasePlayer's inheritance chain is single and
+	// non-virtual all the way to CBaseEntity.
+	CBaseEntity* pEntity = CBaseEntity::Instance(pev);
+	CBasePlayer* pl = pEntity ? pEntity->MyPlayerPointer() : nullptr;
 	CBasePlayerWeapon* gun;
 
 	ItemInfo II;
@@ -1822,7 +1829,14 @@ void UpdateClientData(const edict_t* ent, int sendweapons, struct clientdata_s* 
 	if (!ent || !ent->pvPrivateData)
 		return;
 	entvars_t* pev = (entvars_t*)&ent->v;
-	CBasePlayer* pl = dynamic_cast<CBasePlayer*>(CBasePlayer::Instance(pev));
+	// NXDK provides no dynamic_cast runtime support (no __RTDynamicCast in
+	// any of its prebuilt libs) - CBaseEntity::MyPlayerPointer() is the
+	// same RTTI-free safe-downcast idiom this SDK already uses for
+	// MyMonsterPointer()/MyTogglePointer() (see dlls/cbase.h), behaviourally
+	// identical here since CBasePlayer's inheritance chain is single and
+	// non-virtual all the way to CBaseEntity.
+	CBaseEntity* pEntity = CBaseEntity::Instance(pev);
+	CBasePlayer* pl = pEntity ? pEntity->MyPlayerPointer() : nullptr;
 	entvars_t* pevOrg = NULL;
 
 	// if user is spectating different player in First person, override some vars
@@ -1832,7 +1846,8 @@ void UpdateClientData(const edict_t* ent, int sendweapons, struct clientdata_s* 
 		{
 			pevOrg = pev;
 			pev = pl->m_hObserverTarget->pev;
-			pl = dynamic_cast<CBasePlayer*>(CBasePlayer::Instance(pev));
+			pEntity = CBaseEntity::Instance(pev);
+			pl = pEntity ? pEntity->MyPlayerPointer() : nullptr;
 		}
 	}
 
@@ -1937,7 +1952,14 @@ This is the time to examine the usercmd for anything extra.  This call happens e
 void CmdStart(const edict_t* player, const struct usercmd_s* cmd, unsigned int random_seed)
 {
 	entvars_t* pev = (entvars_t*)&player->v;
-	CBasePlayer* pl = dynamic_cast<CBasePlayer*>(CBasePlayer::Instance(pev));
+	// NXDK provides no dynamic_cast runtime support (no __RTDynamicCast in
+	// any of its prebuilt libs) - CBaseEntity::MyPlayerPointer() is the
+	// same RTTI-free safe-downcast idiom this SDK already uses for
+	// MyMonsterPointer()/MyTogglePointer() (see dlls/cbase.h), behaviourally
+	// identical here since CBasePlayer's inheritance chain is single and
+	// non-virtual all the way to CBaseEntity.
+	CBaseEntity* pEntity = CBaseEntity::Instance(pev);
+	CBasePlayer* pl = pEntity ? pEntity->MyPlayerPointer() : nullptr;
 
 	if (!pl)
 		return;
@@ -1960,7 +1982,14 @@ Each cmdstart is exactly matched with a cmd end, clean up any group trace flags,
 void CmdEnd(const edict_t* player)
 {
 	entvars_t* pev = (entvars_t*)&player->v;
-	CBasePlayer* pl = dynamic_cast<CBasePlayer*>(CBasePlayer::Instance(pev));
+	// NXDK provides no dynamic_cast runtime support (no __RTDynamicCast in
+	// any of its prebuilt libs) - CBaseEntity::MyPlayerPointer() is the
+	// same RTTI-free safe-downcast idiom this SDK already uses for
+	// MyMonsterPointer()/MyTogglePointer() (see dlls/cbase.h), behaviourally
+	// identical here since CBasePlayer's inheritance chain is single and
+	// non-virtual all the way to CBaseEntity.
+	CBaseEntity* pEntity = CBaseEntity::Instance(pev);
+	CBasePlayer* pl = pEntity ? pEntity->MyPlayerPointer() : nullptr;
 
 	if (!pl)
 		return;
