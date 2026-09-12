@@ -3416,7 +3416,12 @@ void CBasePlayer::GiveNamedItem(const char* szName, int defaultAmmo)
 		return;
 	}
 
-	if (auto weapon = dynamic_cast<CBasePlayerWeapon*>(entity); weapon)
+	// NXDK provides no dynamic_cast runtime support (no __RTDynamicCast in
+	// any of its prebuilt libs) - GetWeaponPtr() is the same RTTI-free
+	// safe-downcast idiom this SDK already uses for MyMonsterPointer() etc.
+	// (see dlls/cbase.h), pulled up from CBasePlayerItem to CBaseEntity for
+	// this call site's sake.
+	if (auto weapon = entity->GetWeaponPtr(); weapon)
 	{
 		weapon->m_iDefaultAmmo = defaultAmmo;
 	}

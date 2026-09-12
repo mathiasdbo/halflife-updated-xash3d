@@ -252,7 +252,7 @@ public:
 
 	virtual bool UpdateClientData(CBasePlayer* pPlayer) { return false; }
 
-	virtual CBasePlayerWeapon* GetWeaponPtr() { return NULL; }
+	CBasePlayerWeapon* GetWeaponPtr() override { return NULL; }
 
 	virtual void GetWeaponData(weapon_data_t& data) {}
 
