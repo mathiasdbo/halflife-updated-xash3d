@@ -318,6 +318,27 @@ bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, in
 {
 	*iCompare = 0;
 
+#if defined(NXDK)
+	// Resonance3D: found in Codex review - FileSystem_GetFileTime always
+	// returns 0 here (nxdk has no real stat()/fstat() - see that
+	// function's own comment), so comparing two always-equal values told
+	// every caller "these files have the same timestamp", which is not
+	// true and not safe. The one real caller,
+	// CGraph::CheckNODFile (dlls/nodes.cpp:2621-2642), reads
+	// iCompare == 0 plus a true return as "the cached .nod is current,
+	// don't rebuild it" - exactly backwards from what an unknown
+	// timestamp should mean, and confirmed by reading that function
+	// directly rather than assuming: only `iCompare > 0` or this
+	// function returning false make it rebuild. Returning false here -
+	// "these timestamps could not be compared" - takes CheckNODFile's
+	// own explicit fallback for exactly that case (retValue = false,
+	// i.e. rebuild), the correct safe behaviour, without ever relying on
+	// FileSystem_GetFileTime's return value looking like a real
+	// timestamp to this function.
+	(void)filename1;
+	(void)filename2;
+	return false;
+#else
 	if (!filename1 || !filename2)
 	{
 		return false;
@@ -336,6 +357,7 @@ bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, in
 	}
 
 	return true;
+#endif
 }
 
 std::vector<std::byte> FileSystem_LoadFileIntoBuffer(const char* fileName, FileContentFormat format, const char* pathID)
