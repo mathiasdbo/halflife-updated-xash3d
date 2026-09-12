@@ -32,7 +32,17 @@
 
 /* Need to do this here because intrin.h has C++ code in it */
 /* Visual Studio 2005 has a bug where intrin.h conflicts with winnt.h */
-#if defined(_MSC_VER) && (_MSC_VER >= 1500) && (defined(_M_IX86) || defined(_M_X64))
+/* R3D: excluded on NXDK - see SDL_endian.h's matching guard for the full
+   reasoning (real-MSVC-only machinery, _MSC_VER genuinely defined here
+   even though nothing is real MSVC, no <intrin.h> on this platform at
+   all). Also avoids this block unconditionally #define-ing __SSE2__/
+   __SSE3__, which the real Xbox CPU (Pentium III class) does not have -
+   clang's own -march=pentium3 already predefines the correct feature
+   macros (__MMX__/__SSE__ only, verified directly), so falling through
+   to this file's own #else branch (a harmless no-op cascade on this x86,
+   non-ARM, non-Altivec target) is not just a workaround, it is the
+   correct answer. */
+#if defined(_MSC_VER) && (_MSC_VER >= 1500) && (defined(_M_IX86) || defined(_M_X64)) && !defined(NXDK)
 #ifdef __clang__
 /* As of Clang 11, '_m_prefetchw' is conflicting with the winnt.h's version,
    so we define the needed '_m_prefetch' here as a pseudo-header, until the issue is fixed. */
