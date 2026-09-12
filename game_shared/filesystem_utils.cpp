@@ -318,27 +318,36 @@ bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, in
 {
 	*iCompare = 0;
 
-#if defined(NXDK)
-	// Resonance3D: found in Codex review - FileSystem_GetFileTime always
-	// returns 0 here (nxdk has no real stat()/fstat() - see that
-	// function's own comment), so comparing two always-equal values told
-	// every caller "these files have the same timestamp", which is not
-	// true and not safe. The one real caller,
-	// CGraph::CheckNODFile (dlls/nodes.cpp:2621-2642), reads
-	// iCompare == 0 plus a true return as "the cached .nod is current,
-	// don't rebuild it" - exactly backwards from what an unknown
-	// timestamp should mean, and confirmed by reading that function
-	// directly rather than assuming: only `iCompare > 0` or this
-	// function returning false make it rebuild. Returning false here -
-	// "these timestamps could not be compared" - takes CheckNODFile's
-	// own explicit fallback for exactly that case (retValue = false,
-	// i.e. rebuild), the correct safe behaviour, without ever relying on
-	// FileSystem_GetFileTime's return value looking like a real
-	// timestamp to this function.
-	(void)filename1;
-	(void)filename2;
-	return false;
-#else
+	// Resonance3D: no NXDK-specific branch here, deliberately, after two
+	// rounds of Codex review landed on opposite mistakes for the same
+	// underlying limitation (nxdk has no real stat()/fstat() -
+	// FileSystem_GetFileTime always returns 0 here, see that function's
+	// own comment). Round 1: an earlier version of this function let
+	// FileSystem_GetFileTime's 0/0 read as "equal timestamps, cache is
+	// current" to the one real caller, CGraph::CheckNODFile
+	// (dlls/nodes.cpp:2621-2642) - silently reusing a POSSIBLY-stale
+	// `.nod` was the risk. Round 2, on the fix for that: making this
+	// function unconditionally return `false` on NXDK made CheckNODFile
+	// reject EVERY graph, even a genuinely fresh, valid one shipped with
+	// the disc - world.cpp:641-650 then never even calls FLoadGraph(),
+	// forcing a full node/routing regeneration (real CPU cost, worse on
+	// this hardware) on every single map load, unconditionally. Neither
+	// extreme is actually correct without a real timestamp source, which
+	// this platform does not have. Resolution: let this run its
+	// original, unconditional logic - both times are 0, so `iCompare`
+	// stays 0 and this returns `true`, exactly as CGraph::CheckNODFile's
+	// own comment already expects for "couldn't determine which is
+	// newer" - CheckNODFile then proceeds to FLoadGraph(), whose OWN
+	// independent validity checks (missing file -> empty buffer,
+	// dlls/nodes.cpp:2341-2344; wrong GRAPH_VERSION, :2361-2366) are the
+	// real, already-correct gate against a missing or structurally
+	// invalid graph. True staleness (a `.nod` whose format is still
+	// valid but no longer matches an UPDATED `.bsp`) is not detected at
+	// Xbox runtime by this - deliberately deferred to wherever a disc's
+	// assets are actually packaged, where real file timestamps or
+	// content hashes exist to enforce it, not solved here. Degraded (but
+	// not corrupted or crashing) AI navigation from a stale-but-valid
+	// graph is the accepted, documented tradeoff, not an oversight.
 	if (!filename1 || !filename2)
 	{
 		return false;
@@ -357,7 +366,6 @@ bool FileSystem_CompareFileTime(const char* filename1, const char* filename2, in
 	}
 
 	return true;
-#endif
 }
 
 std::vector<std::byte> FileSystem_LoadFileIntoBuffer(const char* fileName, FileContentFormat format, const char* pathID)
