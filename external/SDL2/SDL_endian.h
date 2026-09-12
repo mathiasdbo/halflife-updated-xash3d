@@ -30,7 +30,22 @@
 
 #include "SDL_stdinc.h"
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1400)
+/* R3D: this whole block is real-MSVC-only machinery (a pseudo-header
+   working around a real clang/winnt.h conflict, then <intrin.h> itself),
+   gated on _MSC_VER - which NXDK's own clang invocation genuinely
+   defines (verified: -target i386-pc-win32 predefines it), even though
+   nothing here is real MSVC and NXDK has no <intrin.h> at all. Found
+   compiling the real hl client SDK for the first time: without this
+   guard, clang errors "definition of builtin function '_m_prefetch'"
+   trying to define a name clang already treats as a builtin - calls to
+   it work correctly with zero declaration needed, confirmed by clang
+   already predefining the real Pentium III feature macros this same
+   file's sibling (SDL_cpuinfo.h) tries to redeclare manually one level
+   up (__MMX__/__SSE__, correctly NOT __SSE2__/__SSE3__, which the
+   original hardware never had) - so skipping the whole block here is
+   correct, not just a workaround for the one symbol that happened to
+   error first. */
+#if defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(NXDK)
 /* As of Clang 11, '_m_prefetchw' is conflicting with the winnt.h's version,
    so we define the needed '_m_prefetch' here as a pseudo-header, until the issue is fixed. */
 #ifdef __clang__
