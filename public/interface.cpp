@@ -122,6 +122,70 @@ void* Sys_GetProcAddress(void* pModuleHandle, const char* pName)
 	return GetProcAddress((HMODULE)pModuleHandle, pName);
 }
 
+#if defined(NXDK)
+// NXDK has no dynamic loading at all (no working LoadLibrary - confirmed
+// by hitting this exact gap for real, X7.4 step 1's first boot attempt:
+// deps/hlsdk/game_shared/filesystem_utils.cpp's FileSystem_LoadFileSystem()
+// asserted nullptr != g_pFileSystemModule because Sys_LoadModule's stock
+// WIN32 body, a real LoadLibrary("filesystem_stdio.dll") call below, can
+// never succeed here).
+//
+// A first version of this fix routed straight to this SAME translation
+// unit's own CreateInterface (public/interface.cpp:64, InterfaceReg-based).
+// That is WRONG, found by a second real boot attempt: this exact .cpp is
+// compiled into and isolated AS PART OF the server module (X7.1b), and
+// isolation deliberately renames every occurrence of "CreateInterface"
+// within the server's own isolated object set - including this file's
+// own reference to itself - to sv_CreateInterface, specifically so it
+// cannot collide with filesystem_stdio's real, unrenamed one (X7.1b,
+// tools/xbox-server-exclude-exports.txt, divergence #37). So a bare
+// `CreateInterface` reference from here ALWAYS resolves to the server's
+// own local, unrelated InterfaceReg list (which has no "VFileSystem009"
+// entry at all - that is filesystem_stdio's own, separate, non-InterfaceReg
+// CreateInterface, filesystem/VFileSystem009.cpp:506) - confirmed by the
+// second real boot: FileSystem_LoadFileSystem's OWN assert(nullptr !=
+// g_pFileSystem) fired next, because the call silently returned NULL.
+//
+// The correct way to reach filesystem_stdio's real CreateInterface from
+// here is the SAME mechanism the engine itself already uses successfully
+// for exactly this (engine/common/filesystem_engine.c's FS_LoadProgs,
+// proven working since divergence #31's first confirmed real boot):
+// COM_LoadLibrary("filesystem_stdio", ...) + COM_GetProcAddress(handle,
+// "CreateInterface"). On NXDK (engine/platform/misc/lib_static.c,
+// XASH_LIB == LIB_STATIC) both are pure, stateless, side-effect-free
+// table lookups against generated_library_tables.h's own per-module
+// export table (COM_FreeLibrary is a real no-op there, "impossible") -
+// safe to call a second, independent time from SDK code, and entirely a
+// runtime NAME-based lookup through data tables, not a direct compile-time
+// C symbol reference, so it is not subject to the isolation-renaming
+// collision above at all. Declared locally (matching this SDK file's own
+// existing cross-platform-declaration style) rather than including an
+// engine/ header from public/ - qboolean is plain int (common/xash3d_types.h).
+extern "C" void* COM_LoadLibrary(const char* dllname, int build_ordinals_table, int directpath);
+extern "C" void* COM_GetProcAddress(void* hInstance, const char* name);
+
+CSysModule* Sys_LoadModule(const char* pModuleName)
+{
+	if (strncmp(pModuleName, "filesystem_stdio", 16) != 0)
+		return nullptr;
+
+	return reinterpret_cast<CSysModule*>(COM_LoadLibrary("filesystem_stdio", 0, 1));
+}
+
+void Sys_UnloadModule(CSysModule* pModule)
+{
+	// No real unload primitive on NXDK's static table (COM_FreeLibrary is
+	// a documented no-op there) - nothing to do.
+}
+
+CreateInterfaceFn Sys_GetFactory(CSysModule* pModule)
+{
+	if (!pModule)
+		return NULL;
+
+	return reinterpret_cast<CreateInterfaceFn>(COM_GetProcAddress(pModule, "CreateInterface"));
+}
+#else
 //-----------------------------------------------------------------------------
 // Purpose: Loads a DLL/component from disk and returns a handle to it
 // Input  : *pModuleName - filename of the component
@@ -216,6 +280,7 @@ CreateInterfaceFn Sys_GetFactory(CSysModule* pModule)
 	//See https://en.cppreference.com/w/cpp/language/reinterpret_cast for more information
 	return reinterpret_cast<CreateInterfaceFn>(GetProcAddress(hDLL, CREATEINTERFACE_PROCNAME));
 }
+#endif // defined(NXDK)
 
 //-----------------------------------------------------------------------------
 // Purpose: returns the instance of this module
