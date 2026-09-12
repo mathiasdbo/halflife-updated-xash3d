@@ -272,7 +272,19 @@ time_t FileSystem_GetFileTime(const char* fileName)
 
 	FileSystem_FixSlashes(absoluteFileName);
 
-#ifdef WIN32
+#if defined(NXDK)
+	// Resonance3D: nxdk provides neither the WIN32 branch's _stat64i32 nor
+	// the POSIX branch's stat()/struct stat below - deps/nxdk/lib/xboxrt/
+	// libc_extensions/stat.c's entire body (its own struct stat, stat(),
+	// fstat()) is wrapped in `#if 0`, genuinely never compiled, not a
+	// naming mismatch to paper over. Same safe fallback as the
+	// _STATIC_ENGINE_LINK branch above, for the identical reason: the
+	// only caller, CGraph::CheckNODFile, already treats 0 as
+	// "unknown/rebuild" - the .nod node-graph cache is simply rebuilt
+	// every map load instead of reused.
+	(void)absoluteFileName;
+	return 0;
+#elif defined(WIN32)
 	struct _stat64i32 buf;
 
 	const int result = _stat64i32(absoluteFileName.c_str(), &buf);
