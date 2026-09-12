@@ -225,7 +225,9 @@ public:
 	bool IsAlive() override { return (pev->deadflag == DEAD_NO) && pev->health > 0; }
 	bool ShouldFadeOnDeath() override { return false; }
 	bool IsPlayer() override { return true; } // Spectators should return false for this, they aren't "players" as far as game logic is concerned
-	CBasePlayer* MyPlayerPointer() override { return this; }
+#if defined(NXDK)
+	CBasePlayer* MyPlayerPointer() override { return this; } // overrides CBaseEntity's NXDK-only virtual, see dlls/cbase.h
+#endif
 
 	bool IsNetClient() override { return true; } // Bots should return false for this, they can't receive NET messages
 												 // Spectators should return true for this
