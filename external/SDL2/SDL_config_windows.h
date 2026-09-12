@@ -39,7 +39,19 @@ typedef signed __int32 int32_t;
 typedef unsigned __int32 uint32_t;
 typedef signed __int64 int64_t;
 typedef unsigned __int64 uint64_t;
-#ifndef _UINTPTR_T_DEFINED
+/* R3D: excluded on NXDK - _MSC_VER is genuinely defined by this project's
+   own clang invocation (verified directly), so this branch is reached
+   even though nothing here is real MSVC. pdclib's own <stdint.h> already
+   provides a real, working uintptr_t (unsigned long) by the time this
+   header is reached (deps/hlsdk/cl_dll/cdll_int.cpp's own include chain:
+   common/Platform.h -> <cmath> -> ... -> <stdint.h>, before this file);
+   redeclaring it here as unsigned int is a genuine "typedef redefinition
+   with different types" hard error, not a warning, found compiling the
+   real hl client SDK for the first time. The int8_t/uint16_t/etc.
+   typedefs immediately above this block do NOT need the same guard -
+   their __intN spellings are typedef-compatible with pdclib's own
+   signed char/short/etc., verified directly: only uintptr_t conflicts. */
+#if !defined(_UINTPTR_T_DEFINED) && !defined(NXDK)
 #ifdef  _WIN64
 typedef unsigned __int64 uintptr_t;
 #else
