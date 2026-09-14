@@ -493,28 +493,29 @@ bool UTIL_IsValveGameDirectory()
 	// startup every launch if this returned true here.
 	return false;
 #elif defined(NXDK)
-	// Same tension as _STATIC_ENGINE_LINK above, but narrower: Resonance3D
-	// ports the stock game itself to Xbox, one title per statically linked
-	// XBE (docs/r3d/fork-plan.md's "Per-title XBEs" - HL, Blue Shift, Op4),
-	// so only THOSE gamedirs are the legitimate, accepted case, matched
-	// against this SDK's own real build - not every Valve-prefixed
-	// directory unconditionally. A disc/XBE mismatch (e.g. this SDK's own
-	// compiled client/server running against a "cstrike" or "tfc" gamedir
-	// it was never built for) is a real, if narrow, misconfiguration that
-	// must still fail loudly here rather than silently proceed with the
-	// wrong statically-linked game logic (found in review) - confirmed
-	// live: without exempting "valve" specifically, CL_InitClient()/
-	// SV_InitServer both quit right after filesystem init on every single
-	// boot, reliably, the moment they detect that gamedir.
-	static constexpr const char* ResonanceEngineTitles[] = {"valve", "gearbox", "bshift"};
+	// Same tension as _STATIC_ENGINE_LINK above, but narrower and exact,
+	// not a prefix match: Resonance3D ports the stock game itself to
+	// Xbox, one title per statically linked XBE, each with its OWN
+	// separate SDK checkout (this one, deps/hlsdk, is Half-Life's own -
+	// Blue Shift and Op4 are deps/hlsdk-bshift/deps/hlsdk-opfor,
+	// docs/r3d/fork-plan.md's "Per-title XBEs" - each needs this exact
+	// same fix in its own copy of this file when its own bring-up
+	// starts, exempting ITS OWN gamedir, not this one's). So THIS
+	// checkout only ever legitimately sees gamedir "valve", exactly -
+	// full case-insensitive equality, not the strnicmp+strlen(prefix)
+	// substring match used below, which would also have accepted
+	// "valve_custom" or anything else merely starting with "valve"
+	// (found in review, both gaps). A disc/XBE mismatch must still fail
+	// loudly here rather than silently proceed with the wrong
+	// statically-linked game logic - confirmed live: without exempting
+	// exactly "valve", CL_InitClient()/SV_InitServer both quit right
+	// after filesystem init on every single boot, reliably, the moment
+	// they detect that gamedir.
 	const std::string& modDirectoryName = FileSystem_GetModDirectoryName();
 
-	for (const auto title : ResonanceEngineTitles)
+	if (stricmp(modDirectoryName.c_str(), "valve") == 0)
 	{
-		if (strnicmp(modDirectoryName.c_str(), title, strlen(title)) == 0)
-		{
-			return false;
-		}
+		return false;
 	}
 
 	for (const auto prefix : ValveGameDirectoryPrefixes)
