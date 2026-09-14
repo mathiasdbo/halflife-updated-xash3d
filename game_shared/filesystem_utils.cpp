@@ -485,19 +485,46 @@ constexpr const char* ValveGameDirectoryPrefixes[] =
 
 bool UTIL_IsValveGameDirectory()
 {
-#if defined(_STATIC_ENGINE_LINK) || defined(NXDK)
+#ifdef _STATIC_ENGINE_LINK
 	// This guard exists to refuse running a mod out of a retail Valve game's
 	// own directory - meaningless when statically linked into Ferrum56,
 	// whose mod directory legitimately IS "valve" (there is no separate mod
 	// installation to protect). SV_InitServer (dlls/game.cpp) would quit on
-	// startup every launch if this returned true here. Same reasoning
-	// applies on NXDK (Resonance3D): that fork ports the stock game itself
-	// to Xbox rather than shipping a third-party mod alongside a separate
-	// retail install, so its own gamedir legitimately being "valve" is
-	// correct, not the accidental-overwrite scenario this check exists to
-	// catch - confirmed live: without this, CL_InitClient()/SV_InitServer
-	// both quit right after filesystem init on every single boot, reliably,
-	// the moment they detect gamedir "valve".
+	// startup every launch if this returned true here.
+	return false;
+#elif defined(NXDK)
+	// Same tension as _STATIC_ENGINE_LINK above, but narrower: Resonance3D
+	// ports the stock game itself to Xbox, one title per statically linked
+	// XBE (docs/r3d/fork-plan.md's "Per-title XBEs" - HL, Blue Shift, Op4),
+	// so only THOSE gamedirs are the legitimate, accepted case, matched
+	// against this SDK's own real build - not every Valve-prefixed
+	// directory unconditionally. A disc/XBE mismatch (e.g. this SDK's own
+	// compiled client/server running against a "cstrike" or "tfc" gamedir
+	// it was never built for) is a real, if narrow, misconfiguration that
+	// must still fail loudly here rather than silently proceed with the
+	// wrong statically-linked game logic (found in review) - confirmed
+	// live: without exempting "valve" specifically, CL_InitClient()/
+	// SV_InitServer both quit right after filesystem init on every single
+	// boot, reliably, the moment they detect that gamedir.
+	static constexpr const char* ResonanceEngineTitles[] = {"valve", "gearbox", "bshift"};
+	const std::string& modDirectoryName = FileSystem_GetModDirectoryName();
+
+	for (const auto title : ResonanceEngineTitles)
+	{
+		if (strnicmp(modDirectoryName.c_str(), title, strlen(title)) == 0)
+		{
+			return false;
+		}
+	}
+
+	for (const auto prefix : ValveGameDirectoryPrefixes)
+	{
+		if (strnicmp(modDirectoryName.c_str(), prefix, strlen(prefix)) == 0)
+		{
+			return true;
+		}
+	}
+
 	return false;
 #else
 	const std::string& modDirectoryName = FileSystem_GetModDirectoryName();
@@ -511,5 +538,5 @@ bool UTIL_IsValveGameDirectory()
 	}
 
 	return false;
-#endif // defined(_STATIC_ENGINE_LINK) || defined(NXDK)
+#endif // defined(_STATIC_ENGINE_LINK) / defined(NXDK)
 }
