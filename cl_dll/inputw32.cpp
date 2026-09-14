@@ -78,7 +78,16 @@ static void IN_SetMouseRelative(bool enable)
 {
 	const SDL_bool value = enable ? SDL_TRUE : SDL_FALSE;
 
+#if !defined(NXDK)
+	// NXDK's SDL2 video driver never registers a WarpMouse or
+	// SetRelativeMouseMode callback (no OS mouse cursor to warp on a
+	// console) - SDL_SetRelativeMouseMode's own ShouldUseRelativeModeWarp()
+	// (SDL_mouse.c) hits SDL_assert(mouse->WarpMouse) the first time this
+	// runs, which hangs with no way to answer the prompt. Same gap, same
+	// fix shape, as the engine's own IN_SetRelativeMouseMode
+	// (engine/client/input/input.c, resonance3d divergence #49).
 	SDL_SetRelativeMouseMode(value);
+#endif
 	mouseRelative = value;
 }
 
