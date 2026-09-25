@@ -38,6 +38,13 @@
 #include "vgui_TeamFortressViewport.h"
 #include "filesystem_utils.h"
 
+#if defined(NXDK)
+// Resonance3D: HISTORY_MAX is 16 on the Original Xbox (common/cl_entity.h),
+// and every field after cl_entity_t::ph moves - the engine asserts the same
+// size (engine/client/dll_int/cl_game.c), so the two cannot disagree.
+static_assert(sizeof(cl_entity_t) == 1656, "Xbox cl_entity_t must match the engine's");
+#endif
+
 cl_enginefunc_t gEngfuncs;
 CHud gHUD;
 TeamFortressViewport* gViewPort = NULL;
