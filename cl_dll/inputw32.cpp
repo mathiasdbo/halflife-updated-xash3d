@@ -732,7 +732,8 @@ void IN_StartupJoystick()
 	// twice: IN_Commands sent button i as K_JOY1 + i (B became K_JOY2, the
 	// key named RTRIGGER), and IN_JoyMove added a second look/move from the
 	// client's own joy* cvars, which the menu does not set. joy_avail stays
-	// false, so IN_Commands and IN_JoyMove do nothing.
+	// false, so IN_Commands and IN_JoyMove do nothing. Resonance3D
+	// docs/r3d/divergences.md #148.
 	return;
 #endif
 
