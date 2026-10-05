@@ -724,6 +724,18 @@ IN_StartupJoystick
 */
 void IN_StartupJoystick()
 {
+#if defined(NXDK)
+	// On the Xbox the engine already owns the gamepad: Xash3D's joy_sdl2.c
+	// turns SDL game controller events into A_BUTTON..R2_BUTTON keys and
+	// stick motion, driven by the engine's joy_* cvars and the menu's binds.
+	// Opening the same controller here as well made every press arrive
+	// twice: IN_Commands sent button i as K_JOY1 + i (B became K_JOY2, the
+	// key named RTRIGGER), and IN_JoyMove added a second look/move from the
+	// client's own joy* cvars, which the menu does not set. joy_avail stays
+	// false, so IN_Commands and IN_JoyMove do nothing.
+	return;
+#endif
+
 	// abort startup if user requests no joystick
 	if (0 != gEngfuncs.CheckParm("-nojoy", NULL))
 		return;
