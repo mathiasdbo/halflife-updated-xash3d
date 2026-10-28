@@ -20,6 +20,26 @@ AngleQuaternion
 
 ====================
 */
+#if defined(NXDK)
+// Resonance3D (docs/r3d/divergences.md): on the Xbox sin() and cos() are
+// calls into the C library, each one a single x87 fsin or fcos. A bone
+// needs the sine and the cosine of three angles, six calls and six
+// argument reductions; fsincos gives both from one reduction.
+static inline void AngleSinCos(double angle, float& s, float& c)
+{
+	double sv, cv;
+	__asm__("fsincos" : "=t"(cv), "=u"(sv) : "0"(angle));
+	s = static_cast<float>(sv);
+	c = static_cast<float>(cv);
+}
+#else
+static inline void AngleSinCos(double angle, float& s, float& c)
+{
+	s = sin(angle);
+	c = cos(angle);
+}
+#endif
+
 void AngleQuaternion(float* angles, vec4_t quaternion)
 {
 	float angle;
@@ -27,14 +47,11 @@ void AngleQuaternion(float* angles, vec4_t quaternion)
 
 	// FIXME: rescale the inputs to 1/2 angle
 	angle = angles[2] * 0.5;
-	sy = sin(angle);
-	cy = cos(angle);
+	AngleSinCos(angle, sy, cy);
 	angle = angles[1] * 0.5;
-	sp = sin(angle);
-	cp = cos(angle);
+	AngleSinCos(angle, sp, cp);
 	angle = angles[0] * 0.5;
-	sr = sin(angle);
-	cr = cos(angle);
+	AngleSinCos(angle, sr, cr);
 
 	quaternion[0] = sr * cp * cy - cr * sp * sy; // X
 	quaternion[1] = cr * sp * cy + sr * cp * sy; // Y
