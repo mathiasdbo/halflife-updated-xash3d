@@ -1,3 +1,23 @@
+# Resonance3D fork
+
+This is the Half-Life game code used by [Resonance3D](https://github.com/mathiasdbo/Resonance3D), the Original Xbox
+port of Xash3D-FWGS. It is [twhl-community/halflife-updated](https://github.com/twhl-community/halflife-updated)
+plus the changes that let the server and client DLLs build as static
+libraries for the Xbox's nxdk toolchain. The branch Resonance3D pulls in is
+`resonance3d`.
+
+What this fork changes (all guarded for the Xbox, so the PC build is
+unchanged):
+
+- Filesystem and interface code that cannot use `stat()`, `dynamic_cast` or
+  dynamic module loading on nxdk.
+- Input: the client no longer opens the gamepad, which the engine owns on the
+  console; relative mouse mode is skipped.
+- Network entity history and edict-slot limits sized for the console's memory.
+- CMake settings for the Xbox target (architecture and defines).
+
+Each change is recorded in Resonance3D's [`docs/r3d/divergences.md`](https://github.com/mathiasdbo/Resonance3D/blob/main/docs/r3d/divergences.md). Upstream's README follows.
+
 # About
 
 [Half-Life Updated](https://github.com/twhl-community/halflife-updated), [Opposing Force Updated](https://github.com/twhl-community/halflife-op4-updated) and [Blue Shift Updated](https://github.com/twhl-community/halflife-bs-updated) are repositories that provide updated versions of the Half-Life SDK, targeted to the 3 Half-Life 1 PC games officially available.
