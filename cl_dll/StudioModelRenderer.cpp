@@ -171,6 +171,43 @@ void CStudioModelRenderer::StudioCalcBoneAdj(float dadt, float* adj, const byte*
 }
 
 
+#if defined(NXDK)
+// Resonance3D (docs/r3d/divergences.md): a bone's quaternion is a pure
+// function of its three angles, and a keyframe pair repeats from one
+// render frame to the next, so most calls recompute a result already held.
+// A direct-mapped table keyed by the angles' bit patterns returns the
+// stored quaternion on a match and calls AngleQuaternion on a miss; a hit
+// is bit-identical to the call it replaces. 4096 entries of 32 bytes.
+struct R3dQuatMemo
+{
+	float a[3];
+	unsigned int valid;
+	float q[4];
+};
+
+static R3dQuatMemo g_r3dQuatMemo[4096];
+
+static inline void R3dAngleQuaternion(float* angles, vec4_t q)
+{
+	unsigned int u[3];
+	memcpy(u, angles, sizeof(u));
+	unsigned int h = u[0] * 2654435761u + u[1] * 2246822519u + u[2] * 3266489917u;
+	R3dQuatMemo* e = &g_r3dQuatMemo[(h * 2654435761u) >> 20];
+
+	if (e->valid && 0 == memcmp(e->a, angles, sizeof(e->a)))
+	{
+		memcpy(q, e->q, sizeof(e->q));
+		return;
+	}
+	AngleQuaternion(angles, q);
+	memcpy(e->a, angles, sizeof(e->a));
+	memcpy(e->q, q, sizeof(e->q));
+	e->valid = 1;
+}
+#else
+#define R3dAngleQuaternion AngleQuaternion
+#endif
+
 /*
 ====================
 StudioCalcBoneQuaterion
@@ -247,13 +284,13 @@ void CStudioModelRenderer::StudioCalcBoneQuaterion(int frame, float s, mstudiobo
 
 	if (!VectorCompare(angle1, angle2))
 	{
-		AngleQuaternion(angle1, q1);
-		AngleQuaternion(angle2, q2);
+		R3dAngleQuaternion(angle1, q1);
+		R3dAngleQuaternion(angle2, q2);
 		QuaternionSlerp(q1, q2, s, q);
 	}
 	else
 	{
-		AngleQuaternion(angle1, q);
+		R3dAngleQuaternion(angle1, q);
 	}
 }
 
