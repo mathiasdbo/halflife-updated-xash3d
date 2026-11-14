@@ -2237,6 +2237,47 @@ void CSave::BufferData(const char* pdata, int size)
 //
 // --------------------------------------------------------------
 
+// Saved games written before the Xbox port named callbacks hold them as `ofs:N`, an offset from GameDLLInit; the engine
+// maps each offset to the function it was (XS.3, docs/r3d/fork-plan.md). One offset, -210368, was two functions the
+// linker had folded into one: CBaseMonster::CallMonsterThink, only ever a think, and CFuncPlat::CallHitBottom, only ever
+// a move-done callback. The engine cannot tell them apart, the field that holds the pointer can. Any other field with
+// that offset is not something an earlier version wrote; its string is left as it is and the engine refuses the load.
+static const char* LegacyFoldedCallback(const char* fieldName, const char* saved)
+{
+	if (strncmp(saved, "ofs:", 4) != 0)
+		return saved;
+
+	const char* digits = saved + 4;
+	bool negative = *digits == '-';
+	if (negative)
+		digits++;
+
+	unsigned long long value = 0;
+	int count = 0;
+	for (; *digits >= '0' && *digits <= '9'; digits++, count++)
+	{
+		value = value * 10 + (unsigned)(*digits - '0');
+		if (value > 0xFFFFFFFFull)
+			return saved;
+	}
+
+	if (count == 0 || *digits)
+		return saved;
+
+	if (negative)
+		value = (0x100000000ull - value) & 0xFFFFFFFFull;
+
+	if (value != 0x100000000ull - 210368)
+		return saved;
+
+	if (!strcmp(fieldName, "m_pfnThink"))
+		return "CallMonsterThink@CBaseMonster";
+	if (!strcmp(fieldName, "m_pfnCallWhenMoveDone"))
+		return "CallHitBottom@CFuncPlat";
+
+	return saved;
+}
+
 int CRestore::ReadField(void* pBaseData, TYPEDESCRIPTION* pFields, int fieldCount, int startField, int size, char* pName, void* pData)
 {
 	int i, j, stringCount, fieldNumber, entityIndex;
@@ -2389,7 +2430,7 @@ int CRestore::ReadField(void* pBaseData, TYPEDESCRIPTION* pFields, int fieldCoun
 						if (strlen((char*)pInputData) == 0)
 							*((int*)pOutputData) = 0;
 						else
-							*((int*)pOutputData) = FUNCTION_FROM_NAME((char*)pInputData);
+							*((int*)pOutputData) = FUNCTION_FROM_NAME(LegacyFoldedCallback(pTest->fieldName, (char*)pInputData));
 						break;
 
 					default:
